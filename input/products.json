@@ -1,0 +1,6 @@
+[
+  {"product_id": "P201", "category": "Books", "unit_price": 250},
+  {"product_id": "P202", "category": "Electronics", "unit_price": 1200},
+  {"product_id": "P203", "category": "Health", "unit_price": 400},
+  {"product_id": "P204", "category": "Stationery", "unit_price": 150}
+]
