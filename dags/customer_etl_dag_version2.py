@@ -1,6 +1,9 @@
 from airflow import DAG
 from airflow.operators.bash import BashOperator
+
 from datetime import datetime, timedelta
+
+# adding comments to test the feature branch flow on git - 2025-08-06
 
 default_args = {
     'owner': 'customer_etl_pipeline',
