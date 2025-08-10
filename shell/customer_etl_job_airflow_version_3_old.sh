@@ -1,41 +1,22 @@
 #!/bin/bash
-set -euo pipefail
 
-if [ $# -ne 1 ]; then
-   echo "Usage: bash /opt/spark-apps/customer_etl/shell/customer_etl_job_airflow_version_3.sh <dev|prod>" 
-   exit 1
-fi    
+# Step 1: Validate Input
+if [ -z "$1" ]; then
+  echo "Usage: ./customer_etl_job_airflow_version_2.sh <YYYY-MM-DD>"
+  exit 1
+fi
 
-
-ENV="$1"
-
-if [[ "$ENV" != "dev" && "$ENV" != "prod" ]]; then
-   echo "Error: ENV must be 'dev' or 'prod'."
-   exit 1
-fi   
-
-
-CONFIG_PATH="/opt/spark-apps/customer_etl/config/env.sh"
-
-if [ ! -f "$CONFIG_PATH" ]; then
-   echo "Error: Environment config file not found at $CONFIG_PATH"
-   exit 1
-fi   
-
-# Source env (this sets RUN_DATE, LANDING_PATH, HDFS_INPUT, HDFS_OUTPUT, FINAL_CSV)
-# Note: env.sh calculates RUN_DATE internally
-
-source "$CONFIG_PATH" "$ENV"
-
-echo " Running Customer ETL for: ${RUN_DATE} (env: ${ENV})"
-echo " Final CSV will be stored at: ${FINAL_CSV}"
-
-
+RUN_DATE="$1"
+LANDING_PATH="/opt/spark-apps/landing/customer_etl/"
+HDFS_INPUT="/customer_etl/input"
+HDFS_OUTPUT="/customer_etl/output/loyalty_snapshot_${RUN_DATE}"
+FINAL_CSV="/opt/spark-apps/shared_output/customer_etl/loyalty_snapshot_${RUN_DATE}.csv"
 
 # Step 4: Export result CSV from HDFS to temp path first
 TMP_CSV="/tmp/loyalty_snapshot_${RUN_DATE}.csv"
 
-
+echo " Running Customer ETL for: $RUN_DATE"
+echo " Final CSV will be stored at: $FINAL_CSV"
 
 echo " [FORCED MODE] Running as if inside a container (Airflow or Jupyter)"
 
@@ -59,7 +40,7 @@ hdfs dfs -put "${LANDING_PATH}/orders.csv" ${HDFS_INPUT}/
 
 # Step 3: Run the Spark job
 echo " Running Spark job..."
-spark-submit --master spark://spark-master:7077 /opt/spark-apps/customer_etl/scripts/customer_etl_job.py "${RUN_DATE}" "${HDFS_INPUT}" "${HDFS_OUTPUT}" 
+spark-submit --master spark://spark-master:7077 /opt/spark-apps/customer_etl/scripts/customer_etl_job.py "$RUN_DATE"
 
 # Optional: Clean up any old ETL temp files older than 1 day
 # find /tmp -name 'loyalty_snapshot_*.csv' -mtime +1 -exec rm -f {} \;
