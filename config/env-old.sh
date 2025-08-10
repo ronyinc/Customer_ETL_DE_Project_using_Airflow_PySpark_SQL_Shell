@@ -2,11 +2,11 @@
 #!/bin/bash
 
 # Usage: source env.sh dev OR source env.sh prod
-ENV="${1:-dev}"
-RUN_DATE="${2:-$(date +%F)}"
+ENV=$1
+RUN_DATE=$(date +%F)
 
-echo "env.sh -> ENV=${ENV}, RUN_DATE=${RUN_DATE}"
-
+echo 'inside env' $ENV
+echo "added for test purpose"
 if [ "$ENV" == "prod" ]; then
   # Prod HDFS paths
   LANDING_PATH="/opt/spark-apps/landing/customer_etl/"

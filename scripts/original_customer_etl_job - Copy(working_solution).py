@@ -1,28 +1,24 @@
-
 from pyspark.sql import SparkSession
 import sys
 
-def main(run_date, hdfs_input, hdfs_output):
 
-    spark = SparkSession.builder.appName("CustomerETL2").master("spark://spark-master:7077").getOrCreate()
+def main(run_date):
+    spark = SparkSession.builder \
+        .appName("CustomerLoyaltyETL") \
+        .master("spark://spark-master:7077") \
+        .getOrCreate()
 
-    orders_path   = f"hdfs://hdfs-namenode:9000{hdfs_input}/orders.csv"
-    products_path = f"hdfs://hdfs-namenode:9000{hdfs_input}/products.json"
-    customers_path= f"hdfs://hdfs-namenode:9000{hdfs_input}/customers.csv"
+    spark = SparkSession.builder.appName("CustomerETL").getOrCreate()
 
-
-    df_orders = spark.read.option("header", True).csv(orders_path)
-    df_products = spark.read.json(products_path)
-    df_customers = spark.read.option("header", True).csv(customers_path)
-
-    df_orders.show()
-
+    df_orders = spark.read.option("header", True).csv("hdfs://hdfs-namenode:9000/customer_etl/input/orders.csv")
+    df_products = spark.read.json("hdfs://hdfs-namenode:9000/customer_etl/input/products.json")
+    df_customers = spark.read.option("header", True).csv("hdfs://hdfs-namenode:9000/customer_etl/input/customers.csv")
 
     df_orders.createOrReplaceTempView("orders")
     df_products.createOrReplaceTempView("products")
     df_customers.createOrReplaceTempView("customers")
 
-
+    # Enrich with price
     spark.sql("""
         CREATE OR REPLACE TEMP VIEW enriched_orders AS
         SELECT
@@ -38,6 +34,7 @@ def main(run_date, hdfs_input, hdfs_output):
         JOIN products p ON o.product_id = p.product_id
     """)
 
+    # Aggregate per customer
     spark.sql("""
         CREATE OR REPLACE TEMP VIEW customer_metrics AS
         SELECT
@@ -50,6 +47,7 @@ def main(run_date, hdfs_input, hdfs_output):
         GROUP BY customer_id
     """)
 
+    # Add loyalty label
     spark.sql("""
         CREATE OR REPLACE TEMP VIEW customer_loyalty AS
         SELECT
@@ -63,7 +61,7 @@ def main(run_date, hdfs_input, hdfs_output):
             m.days_active,
             m.categories_bought,
             CASE
-                WHEN m.total_orders >= 3 AND m.days_active >= 2 AND m.categories_bought >= 2 THEN 'Loyal'
+                WHEN m.total_orders >= 3 AND m.days_active >= 2 AND m.categories_bought >= 2 THEN 'Premium'
                 WHEN m.total_orders >= 2 AND (m.days_active >= 2 OR m.categories_bought >= 2) THEN 'Engaged'
                 ELSE 'Casual'
             END AS loyalty_status
@@ -73,20 +71,15 @@ def main(run_date, hdfs_input, hdfs_output):
 
     df_loyalty = spark.sql("SELECT * FROM customer_loyalty")
 
-    df_loyalty.show()
-
-    output_path = f"hdfs://hdfs-namenode:9000{hdfs_output}"
-
-
-    df_loyalty.write.mode("overwrite").option("header", True).csv(output_path)
-    print(f"Wrote output to: {output_path}")
+    df_loyalty.write.mode("overwrite").option("header", True).csv(
+        f"hdfs://hdfs-namenode:9000/customer_etl/output/loyalty_snapshot_{run_date}")
+        
 
     spark.stop()
 
+
 if __name__ == "__main__":
-    if len(sys.argv) < 4:
-        print("Usage: customer_etl_job.py <YYYY-MM-DD> <HDFS_INPUT_DIR> <HDFS_OUTPUT_DIR>")
+    if len(sys.argv) < 2:
+        print("Usage: customer_etl_job.py <YYYY-MM-DD>")
         sys.exit(1)
-    main(sys.argv[1], sys.argv[2], sys.argv[3])    
-
-
+    main(sys.argv[1])
